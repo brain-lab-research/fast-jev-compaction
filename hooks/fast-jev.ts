@@ -22,7 +22,10 @@ import type {
 const HOOK_DEFAULTS = {
   compactAtPercent: 60,
   minReductionRatio: 0.25,
-  model: DEFAULT_MODEL,
+  // Умолчания согласованы между собой: адрес OpenRouter, значит и имя модели его.
+  // Один ключ на Jev и на обычные модели, вторая подписка не нужна.
+  model: 'typesafe/jev-1.13',
+  baseUrl: 'https://openrouter.ai/api/v1/systemone',
 };
 
 export type HookFetchInit = {
@@ -42,6 +45,8 @@ export type HookFetch = (url: string, init?: HookFetchInit) => Promise<HookFetch
 
 export type HookConfig = CompactOptions & {
   apiKey?: string;
+  /** Jev endpoint. Defaults to OpenRouter so one key covers it and the chat models. */
+  baseUrl?: string;
   compactAtPercent: number;
   minReductionRatio: number;
   model: string;
@@ -80,6 +85,9 @@ export function resolveHookConfig(options: PluginOptions): HookConfig {
     ),
     model: optionString(options, 'model') ?? HOOK_DEFAULTS.model,
   };
+  // Умолчание обязано примениться: без него buildJevRequest уходит в TypeSafe,
+  // и ключ OpenRouter там не принимают.
+  config.baseUrl = optionString(options, 'baseUrl') ?? HOOK_DEFAULTS.baseUrl;
   const apiKey = optionString(options, 'apiKey');
   if (apiKey) config.apiKey = apiKey;
   const goal = optionString(options, 'goal');
@@ -88,10 +96,15 @@ export function resolveHookConfig(options: PluginOptions): HookConfig {
 }
 
 /** A `JevAsker` over the engine's `$.http.fetch`. */
-export function jevAsker(fetchFn: HookFetch, apiKey: string, model: string): JevAsker {
+export function jevAsker(
+  fetchFn: HookFetch,
+  apiKey: string,
+  model: string,
+  baseUrl?: string,
+): JevAsker {
   return {
     async ask(state, questions) {
-      const request = buildJevRequest({ apiKey, model }, state, questions);
+      const request = buildJevRequest({ apiKey, model, baseUrl }, state, questions);
       const response = await fetchFn(request.url, {
         method: request.method,
         headers: request.headers,
@@ -168,7 +181,11 @@ export async function compactSession(
   fetchFn: HookFetch,
 ): Promise<SessionCompaction> {
   if (!config.apiKey) throw new Error('TYPESAFE_API_KEY is not configured');
-  const result = await compact(messages, jevAsker(fetchFn, config.apiKey, config.model), config);
+  const result = await compact(
+    messages,
+    jevAsker(fetchFn, config.apiKey, config.model, config.baseUrl),
+    config,
+  );
   return { result, messages: toSessionMessages(messages, result.messages) };
 }
 
@@ -232,13 +249,22 @@ async function getApiKey(
   config: HookConfig,
 ): Promise<string | undefined> {
   if (config.apiKey) return config.apiKey;
-  const fromEnv = await $.env.get('TYPESAFE_API_KEY');
-  if (fromEnv) return fromEnv;
+  // OpenRouter отдаёт тот же протокол System One, и ключ к нему уже есть; тогда
+  // вторая подписка на TypeSafe не нужна. Порядок: явная настройка, OpenRouter,
+  // TypeSafe, затем то же самое из настроек Claude Code.
+  // Имена переменных пишутся литералами, а не в цикле: движок перечисляет то,
+  // что модуль читает, и переменную в `$.env.get` он не принимает.
+  const fromOpenRouter = await $.env.get('OPENROUTER_API_KEY');
+  if (fromOpenRouter) return fromOpenRouter;
+  const fromTypeSafe = await $.env.get('TYPESAFE_API_KEY');
+  if (fromTypeSafe) return fromTypeSafe;
   const settings = await $.settings.read();
   const env = settings['env'];
   if (env && typeof env === 'object') {
-    const value = (env as Record<string, unknown>)['TYPESAFE_API_KEY'];
-    if (typeof value === 'string' && value) return value;
+    for (const имя of ['OPENROUTER_API_KEY', 'TYPESAFE_API_KEY'] as const) {
+      const value = (env as Record<string, unknown>)[имя];
+      if (typeof value === 'string' && value) return value;
+    }
   }
   return undefined;
 }

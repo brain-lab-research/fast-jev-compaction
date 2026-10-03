@@ -56,7 +56,13 @@
       "type": "string",
       "title": "Jev model",
       "description": "TypeSafe Jev model name.",
-      "default": "jev-latest"
+      "default": "typesafe/jev-1.13"
+    },
+    "baseUrl": {
+      "type": "string",
+      "title": "Jev endpoint",
+      "description": "Where Jev is called. Defaults to OpenRouter, so one key covers both Jev and the chat models.",
+      "default": "https://openrouter.ai/api/v1/systemone"
     }
   }
 }
