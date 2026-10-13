@@ -86,8 +86,8 @@ export function collectToolCalls(
         isError: found.result.isError ?? false,
         pinned:
           isPinned(callIndex, messages.length, preserveRecentMessages) ||
-          isPinned(found.index, messages.length, preserveRecentMessages) ||
-          isWritingCall(tool.tool, tool.input),
+          isPinned(found.index, messages.length, preserveRecentMessages),
+        writes: isWritingCall(tool.tool, tool.input),
       });
     }
   });

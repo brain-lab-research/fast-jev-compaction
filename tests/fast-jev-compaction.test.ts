@@ -269,6 +269,15 @@ describe('decisions', () => {
     });
   });
 
+  it('keeps a writing call on the record even when Jev would drop it', () => {
+    const wrote = { ...unpinned, tool: 'Write', writes: true };
+    expect(decideCall(wrote, { keepCall: 0.1, keepResult: 0.1 }, options)).toMatchObject({
+      action: 'drop_result',
+      reason: 'result_dropped',
+    });
+    expect(decideCall(wrote, { keepCall: 0.1, keepResult: 0.9 }, options).action).toBe('keep');
+  });
+
   it('removes dropped calls and truncates dropped results', () => {
     const messages = transcript();
     messages[4]!.toolUses[0]!.text = 'x'.repeat(2000);

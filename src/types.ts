@@ -45,6 +45,12 @@ export interface ToolCall {
   isError: boolean;
   /** In the first or the newest preserved messages; never a candidate. */
   pinned: boolean;
+  /**
+   * The call changed something outside the conversation. The record that it ran
+   * must survive, but its output is ordinary: a `scp` printing nothing and a
+   * `git commit` printing one line are not worth their verbatim weight.
+   */
+  writes: boolean;
 }
 
 export interface CallAnswer {

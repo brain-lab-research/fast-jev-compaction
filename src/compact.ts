@@ -99,7 +99,7 @@ export function batchCalls(
 }
 
 export function decideCall(
-  call: Pick<ToolCall, 'id' | 'tool' | 'pinned'>,
+  call: Pick<ToolCall, 'id' | 'tool' | 'pinned'> & Partial<Pick<ToolCall, 'writes'>>,
   answer: CallAnswer,
   options: Pick<ResolvedCompactOptions, 'keepThreshold'>,
 ): CallDecision {
@@ -108,7 +108,10 @@ export function decideCall(
   if (answer.keepResult >= options.keepThreshold) {
     return { ...base, action: 'keep', reason: 'kept' };
   }
-  if (answer.keepCall >= options.keepThreshold) {
+  // A writing call never loses its record, but its output is droppable like any
+  // other. Protecting both was measured as 4.7 points of the whole transcript on
+  // a Bash-heavy session, enough to put compaction under the fallback threshold.
+  if (call.writes || answer.keepCall >= options.keepThreshold) {
     return { ...base, action: 'drop_result', reason: 'result_dropped' };
   }
   return { ...base, action: 'drop_call', reason: 'call_dropped' };

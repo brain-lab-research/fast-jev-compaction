@@ -293,8 +293,11 @@ export const register: Register = (on: On, options: PluginOptions) => {
         const response = await $.http.fetch(url, init);
         return { status: response.status, ok: response.ok, text: response.text };
       });
-      for (const line of decisionLogLines(result)) $.ui.log(line);
       if (reductionRatio(result) < config.minReductionRatio) {
+        // Пер-вызовный разбор печатается только когда сжатие не прошло: тогда он
+        // объясняет, почему, и его читают. На удачном сжатии это простыня из сотен
+        // записей вида `t130:Bash:drop_call/call=0.19/result=0.15` поверх итога.
+        for (const line of decisionLogLines(result)) $.ui.log(line);
         notify(
           $,
           `fallback to built-in summary (below ${percent(config.minReductionRatio)} minimum: ${summarize(result)})`,
