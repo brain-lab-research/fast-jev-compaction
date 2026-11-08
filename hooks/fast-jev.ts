@@ -282,9 +282,27 @@ function notify(
   $.ui.toast(text, { timeoutMs: 15_000 });
 }
 
+/**
+ * Early compaction only pays off while Jev answers, because then the history is cut
+ * verbatim. Once Jev is silent, compaction falls back to the built-in retelling, and
+ * forcing that at 60% of the context instead of the harness threshold loses detail more
+ * often for nothing in return.
+ */
+export function shouldTriggerEarly(
+  percent: number,
+  compactAtPercent: number,
+  jevSilence: string,
+): boolean {
+  if (jevSilence) return false;
+  return percent >= compactAtPercent;
+}
+
 export const register: Register = (on: On, options: PluginOptions) => {
   const configured = resolveHookConfig(options);
   let compacting = false;
+  // Первая же немота Jev снимает ранний запуск до конца сессии. Сжатие по порогу самого
+  // харнесса по-прежнему пробует Jev и подхватит его, если ключ оживёт.
+  let jevSilence = '';
 
   on('session.compact', async ($, event, next) => {
     try {
@@ -293,6 +311,7 @@ export const register: Register = (on: On, options: PluginOptions) => {
         const response = await $.http.fetch(url, init);
         return { status: response.status, ok: response.ok, text: response.text };
       });
+      jevSilence = '';
       if (reductionRatio(result) < config.minReductionRatio) {
         // Пер-вызовный разбор печатается только когда сжатие не прошло: тогда он
         // объясняет, почему, и его читают. На удачном сжатии это простыня из сотен
@@ -310,10 +329,13 @@ export const register: Register = (on: On, options: PluginOptions) => {
       );
       return { messages };
     } catch (error) {
-      notify(
-        $,
-        `fallback to built-in summary (${error instanceof Error ? error.message : String(error)})`,
-      );
+      const why = error instanceof Error ? error.message : String(error);
+      const text =
+        `Jev unavailable (${why}): built-in summary this time, ` +
+        `early compaction at ${configured.compactAtPercent}% off for this session`;
+      if (jevSilence) $.ui.log(text);
+      else notify($, text);
+      jevSilence = why;
       return next(event);
     }
   });
@@ -322,7 +344,9 @@ export const register: Register = (on: On, options: PluginOptions) => {
     if (compacting) return next(event);
     try {
       const { context } = await $.session.usage();
-      if ((context.percent ?? 0) < configured.compactAtPercent) return next(event);
+      if (!shouldTriggerEarly(context.percent ?? 0, configured.compactAtPercent, jevSilence)) {
+        return next(event);
+      }
       compacting = true;
       await $.session.compact();
     } catch (error) {

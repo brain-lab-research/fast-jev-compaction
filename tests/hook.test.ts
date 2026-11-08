@@ -4,6 +4,7 @@ import {
   decisionLog,
   decisionLogLines,
   resolveHookConfig,
+  shouldTriggerEarly,
   summarize,
   toSessionMessages,
 } from '../hooks/fast-jev.ts';
@@ -152,5 +153,16 @@ describe('compactSession', () => {
     await expect(
       compactSession(transcript(), { ...config, apiKey: 'k' }, async () => ({ status: 500, ok: false, text: 'x' })),
     ).rejects.toThrow(/500/);
+  });
+});
+
+describe('early trigger', () => {
+  it('fires above the threshold while Jev answers', () => {
+    expect(shouldTriggerEarly(60, 60, '')).toBe(true);
+    expect(shouldTriggerEarly(59.9, 60, '')).toBe(false);
+  });
+
+  it('stays off once Jev went silent, so the harness keeps its own threshold', () => {
+    expect(shouldTriggerEarly(95, 60, 'HTTP 403 Key limit exceeded')).toBe(false);
   });
 });
