@@ -250,18 +250,20 @@ async function getApiKey(
 ): Promise<string | undefined> {
   if (config.apiKey) return config.apiKey;
   // OpenRouter отдаёт тот же протокол System One, и ключ к нему уже есть; тогда
-  // вторая подписка на TypeSafe не нужна. Порядок: явная настройка, OpenRouter,
-  // TypeSafe, затем то же самое из настроек Claude Code.
+  // вторая подписка на TypeSafe не нужна. Порядок: явная настройка, TypeSafe,
+  // OpenRouter, затем то же самое из настроек Claude Code. `TYPESAFE_API_KEY` идёт
+  // раньше: это ключ только Джева, а `OPENROUTER_API_KEY` в окружении обычно чужой.
+  // 10-11-2026 там стоял ключ Brain Call с исчерпанным лимитом, и сжатие падало с 403.
   // Имена переменных пишутся литералами, а не в цикле: движок перечисляет то,
   // что модуль читает, и переменную в `$.env.get` он не принимает.
-  const fromOpenRouter = await $.env.get('OPENROUTER_API_KEY');
-  if (fromOpenRouter) return fromOpenRouter;
   const fromTypeSafe = await $.env.get('TYPESAFE_API_KEY');
   if (fromTypeSafe) return fromTypeSafe;
+  const fromOpenRouter = await $.env.get('OPENROUTER_API_KEY');
+  if (fromOpenRouter) return fromOpenRouter;
   const settings = await $.settings.read();
   const env = settings['env'];
   if (env && typeof env === 'object') {
-    for (const имя of ['OPENROUTER_API_KEY', 'TYPESAFE_API_KEY'] as const) {
+    for (const имя of ['TYPESAFE_API_KEY', 'OPENROUTER_API_KEY'] as const) {
       const value = (env as Record<string, unknown>)[имя];
       if (typeof value === 'string' && value) return value;
     }
